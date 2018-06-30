@@ -76,33 +76,42 @@ private:
    std::queue<element_information> elements;
 };
 
-template <typename type>
+template<typename type>
 class lazy_destruct
 {
 public:
    using element_type = type;
-   using pointer = element_type*;
    using reference = element_type&;
+   using const_reference = const element_type&;
+   using pointer = element_type*;
+   using const_pointer = const element_type*;
 
-   template <typename... Args>
+   template<typename...Args>
    lazy_destruct(Args&&... args)
    {
-      new (value) element_type{std::forward<Args&&>(args)...};
+      new (value) element_type{ std::forward < Args &&> (args)...};
    }
+
    lazy_destruct(lazy_destruct&& other) : value{ std::move(other.value) } {}
+
    ~lazy_destruct()
    {
-      const auto deleter = [](std::byte* object) noexcept
+      if constexpr(std::is_trivially_destructible_v<element_type>)
+      {
+         return;
+      }
+
+      constexpr auto deleter = [](std::byte * object) noexcept
       {
          reinterpret_cast<element_type*>(object)->~element_type();
       };
-      deferred_heap::get().enqueue({sizeof(element_type), deleter}, value);
+      deferred_heap::get().enqueue({ sizeof(element_type), deleter}, value);
    }
 
-   reference operator*() { return *reinterpret_cast<element_type*>(value); }
-   const reference operator*() const { return *reinterpret_cast<const element_type*>(value); }
+   reference operator *() { return *reinterpret_cast<element_type*>(value); }
+   const_reference operator *() const { return * reinterpret_cast<const element_type*>(value); }
    pointer operator->() { return reinterpret_cast<element_type*>(value); }
-   const pointer operator->() const { return reinterpret_cast<const element_type*>(value); }
+   const_pointer operator->() const { return reinterpret_cast<const element_type*>(value); }
 
 private:
    std::byte value[sizeof(element_type)];
