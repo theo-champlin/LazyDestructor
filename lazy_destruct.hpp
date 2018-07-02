@@ -1,10 +1,8 @@
-#include <array>
 #include <cstddef>
 #include <queue>
 #include <type_traits>
 #include <utility>
-
-#include <iostream>
+#include <vector>
 
 class deferred_heap
 {
@@ -117,21 +115,38 @@ private:
    std::byte value[sizeof(element_type)];
 };
 
+// --------------- TESTING CODE ------------------
+
+#include <iostream>
+#include <mutex>
+#include <thread>
+
+static std::mutex mutex;
+
+template <typename... Args>
+void write(Args&&... args)
+{
+    std::lock_guard lock{ mutex };
+    ((std::cout << ... << args) << std::endl);
+}
+
 class Noisy
 {
     std::size_t value;
 public:
     static std::size_t count;
 
-    Noisy() : value{++count} { std::cout << "Constructor" << std::endl; }
-    Noisy(const Noisy&) { std::cout << "Copy construct" << std::endl; }
-    Noisy(Noisy&&) { std::cout << "Move construct" << std::endl; }
+    Noisy() : value{++count} { write("Constructor ", value); }
+    Noisy(const Noisy&) { write("Copy constructor ", value); }
+    Noisy(Noisy&&) { write("Move constructor ", value); }
 
-    Noisy& operator=(const Noisy&) { std::cout << "Copy assign" << std::endl; return *this; }
-    Noisy& operator=(Noisy&&) { std::cout << "Move assign" << std::endl; return *this; }
+    Noisy& operator=(const Noisy&) { write("Copy assignment ", value); return *this; }
+    Noisy& operator=(Noisy&&) { write("Move assignment ", value); return *this; }
 
-    ~Noisy() { std::cout << "Destruct " << value << std::endl; }
+    ~Noisy() { write("Destructor ", value); }
 };
+
+std::size_t Noisy::count = 0;
 
 void helper()
 {
@@ -140,8 +155,9 @@ void helper()
 
 int main()
 {
-    Noisy::count = 0;
+    std::thread split_one(helper);
     helper();
-    std::cout << "Post helper" << std::endl;
+
     deferred_heap::get().clear();
+    split_one.join();
 }
